@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CATSO English Practice Quiz (Simplified Local)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Optional: Smooth transitions for card states */
+        .option-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        /* Custom scrollbar for better look */
+        #history-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        #history-list::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+
+    <div id="app-container" class="w-full max-w-2xl bg-white shadow-xl rounded-lg p-6 md:p-8">
+
+        <header class="text-center mb-6">
+            <h1 class="text-3xl font-extrabold text-indigo-700">CATSO English Practice</h1>
+            <p class="text-gray-500">Local Persistent Quiz Application (Simplified)</p>
+        </header>
+
+        <div id="content-area">
+            </div>
+
+    </div>
+
+    <div id="result-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-lg shadow-2xl p-6 w-full max-w-md transform transition-all scale-100">
+            <h2 id="modal-title" class="text-2xl font-bold mb-4 text-center text-indigo-600"></h2>
+            <div id="modal-body" class="text-gray-700 space-y-3"></div>
+            <div class="mt-6 flex justify-end">
+                <button id="modal-close-btn" class="px-4 py-2 bg-indigo-500 text-white font-semibold rounded-lg hover:bg-indigo-600 transition duration-150">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <script type="module">
+        // --- 1. DATA IMPORT (Only one import required!) ---
+        import { quizQuestions } from './quiz_data.js';
+
+        // --- 2. APPLICATION CONSTANTS & STATE ---
+        const LOCAL_STORAGE_KEY = "catsoQuizHistory";
+        const TOTAL_QUESTIONS_AVAILABLE = quizQuestions.length;
+
+        // Default settings defined here, but user can override them on the start screen
+        const DEFAULT_SETTINGS = {
+            TIME_LIMIT: 5,
+            MIN_TIME: 1,
+            MAX_TIME: 180,
+            QUIZ_LENGTH: 10,
+            MIN_QUESTIONS: 5,
+            MAX_QUESTIONS: 50,
+            RANDOM_MODE: 'Random'
+        };
+
+        let state = {
+            studentId: "",
+            timeLimitPerQuestion: DEFAULT_SETTINGS.TIME_LIMIT,
+            quizLength: DEFAULT_SETTINGS.QUIZ_LENGTH,
+            randomMode: DEFAULT_SETTINGS.RANDOM_MODE,
+            
+            // Runtime state
+            currentQuestionIndex: 0,
+            userAnswers: [],
+            startTime: 0,
+            timer: null,
+            timeRemaining: DEFAULT_SETTINGS.TIME_LIMIT,
+            selectedQuestions: [], 
+        };
+
+        const contentArea = document.getElementById('content-area');
+        const modal = document.getElementById('result-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalBody = document.getElementById('modal-body');
+        const modalCloseBtn = document.getElementById('modal-close-btn');
+
+        // --- 3. LOCAL STORAGE LOGIC ---
+
+        const loadHistoryFromLocal = () => {
+            const historyJson = localStorage.getItem(LOCAL_STORAGE_KEY);
+            return historyJson ? JSON.parse(historyJson) : [];
+        };
+
+        const saveResultsToLocal = (newResult) => {
+            try {
+                const allHistory = loadHistoryFromLocal();
+                const resultToSave = {
+                    ...newResult,
+                    timestamp: new Date().toISOString()
+                };
+                allHistory.push(resultToSave);
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(allHistory));
+            } catch (e) {
+                console.error("Error saving results to Local Storage: ", e);
+                showModal("Error", "Could not save results to local history. Local Storage might be full or disabled.");
+            }
+        };
+
+        // NEW FUNCTION: Get list of all unique student IDs from history
+        const getStudentIdsFromHistory = () => {
+            const allHistory = loadHistoryFromLocal();
+            const ids = allHistory.map(result => result.studentId).filter(Boolean);
+            return [...new Set(ids)].sort(); // Get unique IDs and sort them
+        };
+
+        const loadHistory = () => {
+            const historyList = document.getElementById('history-list');
+            if (!historyList) return;
+
+            historyList.innerHTML = '<div class="text-center py-4 text-indigo-500">Loading history...</div>';
+
+            const allResults = loadHistoryFromLocal();
+            const userResults = allResults.filter(result => result.studentId === state.studentId);
+            userResults.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            const lastTen = userResults.slice(0, 10);
+
+            if (lastTen.length === 0) {
+                historyList.innerHTML = '<div class="text-center py-4 text-gray-500">No previous attempts found.</div>';
+                return;
+            }
+
+            historyList.innerHTML = lastTen.map((result, index) => {
+                const date = new Date(result.timestamp);
+                const dateStr = date.toLocaleDateString();
+                const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const timeInMinutes = (result.totalTime / 60).toFixed(1);
+                const quizLength = result.quizLength || 'N/A';
+                
+                return `
+                    <li class="p-3 border-b border-gray-200 flex justify-between items-center hover:bg-indigo-50 transition duration-150">
+                        <span class="text-sm font-medium text-gray-800">${index + 1}. ${dateStr} ${timeStr}</span>
+                        <div class="text-right">
+                            <span class="block text-lg font-bold text-indigo-600">${result.score}/${quizLength}</span>
+                            <span class="text-xs text-gray-500">${timeInMinutes} min</span>
+                        </div>
+                    </li>
+                `;
+            }).join('');
+        };
+
+
+        // --- 4. UTILITY FUNCTIONS ---
+
+        const selectQuizQuestions = () => {
+            let questions = [...quizQuestions]; 
+            const isRandom = state.randomMode === 'Random';
+
+            if (isRandom) {
+                // Shuffle the array
+                for (let i = questions.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [questions[i], questions[j]] = [questions[j], questions[i]];
+                }
+            }
+            
+            // Select the specified length
+            state.selectedQuestions = questions.slice(0, state.quizLength);
+        };
+        
+        const showModal = (title, message) => {
+            modalTitle.textContent = title;
+            modalBody.innerHTML = message;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            modalCloseBtn.onclick = () => {
+                modal.classList.remove('flex');
+                modal.classList.add('hidden');
+            };
+        };
+
+        const exportToCSV = (finalResults) => {
+            const results = finalResults.detailedResults;
+            const filename = `CATSO_Quiz_Results_${state.studentId}_${new Date().toISOString().slice(0, 10)}.csv`;
+
+            let csv = "Question,Your Answer,Correct Answer,Status,Time Taken (s)\n";
+            results.forEach((item, index) => {
+                const questionText = item.question.replace(/,/g, " ");
+                const userAnswer = item.userAnswer || "N/A";
+                const correctAnswer = item.correctAnswer;
+                const status = item.isCorrect ? "Correct" : "Incorrect";
+                const timeTaken = item.timeSpent;
+
+                csv += `${index + 1}. ${questionText},${userAnswer},${correctAnswer},${status},${timeTaken}\n`;
+            });
+
+            csv += `\nSUMMARY,,,,,\n`;
+            csv += `Total Score,${finalResults.score},,,, \n`;
+            csv += `Total Time (s),${finalResults.totalTime},,,, \n`;
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", filename);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        };
+
+        // --- 5. UI RENDERING AND QUIZ LOGIC ---
+
+        const renderStartScreen = () => {
+            const existingIds = getStudentIdsFromHistory();
+
+            // Generate dropdown options: New student option + existing IDs
+            const idOptionsHtml = `
+                <option value="" disabled ${!state.studentId ? 'selected' : ''}>--- Select or Enter New ID ---</option>
+                <option value="NEW_STUDENT" class="font-bold">✨ NEW STUDENT (Type Below)</option>
+                ${existingIds.map(id => `<option value="${id}" ${state.studentId === id ? 'selected' : ''}>${id}</option>`).join('')}
+            `;
+            
+            contentArea.innerHTML = `
+                <div class="space-y-6">
+                    <div class="bg-indigo-50 p-6 rounded-lg shadow-inner">
+                        <h2 class="text-xl font-bold text-indigo-700 mb-4 border-b pb-2 border-indigo-200">Student Profile & Quiz Settings</h2>
+                        
+                        <div class="mb-4">
+                            <label for="student-id-select" class="block text-sm font-medium text-gray-700">Select Existing Student ID</label>
+                            <select id="student-id-select" 
+                                class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 mb-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                ${idOptionsHtml}
+                            </select>
+
+                            <label for="new-student-id-input" class="block text-sm font-medium text-gray-700 mt-3">Or Enter New Student ID (3+ chars)</label>
+                            <input type="text" id="new-student-id-input" placeholder="e.g., KhadijaNoor-1" 
+                                class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500" 
+                                value="${state.studentId}" 
+                                style="display: ${existingIds.length === 0 || state.studentId === '' ? 'block' : 'none'};"> 
+
+                            <p id="id-error" class="text-sm text-red-500 mt-1 hidden">Student ID must be 3 or more characters.</p>
+                        </div>
+                        
+                        <div class="grid grid-cols-3 gap-4 mb-6">
+                            <div>
+                                <label for="time-limit" class="block text-sm font-medium text-gray-700">Time Per Q (s)</label>
+                                <input type="number" id="time-limit" min="${DEFAULT_SETTINGS.MIN_TIME}" max="${DEFAULT_SETTINGS.MAX_TIME}" 
+                                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500" 
+                                    value="${state.timeLimitPerQuestion}">
+                                <p class="text-xs text-gray-500 mt-1">1s to 180s.</p>
+                            </div>
+                            
+                            <div>
+                                <label for="quiz-length" class="block text-sm font-medium text-gray-700"># of Questions</label>
+                                <input type="number" id="quiz-length" min="${DEFAULT_SETTINGS.MIN_QUESTIONS}" max="${DEFAULT_SETTINGS.MAX_QUESTIONS}" 
+                                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500" 
+                                    value="${state.quizLength}">
+                                <p class="text-xs text-gray-500 mt-1">5 to 50 questions.</p>
+                            </div>
+
+                            <div>
+                                <label for="random-mode" class="block text-sm font-medium text-gray-700">Question Order</label>
+                                <select id="random-mode" 
+                                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500">
+                                    <option value="Random" ${state.randomMode === 'Random' ? 'selected' : ''}>Random</option>
+                                    <option value="Sequential" ${state.randomMode === 'Sequential' ? 'selected' : ''}>Sequential</option>
+                                </select>
+                                <p class="text-xs text-gray-500 mt-1">From the ${TOTAL_QUESTIONS_AVAILABLE} total available.</p>
+                            </div>
+                        </div>
+
+                        <button id="start-quiz-btn" 
+                            class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150">
+                            Start Practice Quiz (${state.quizLength} Questions)
+                        </button>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg shadow-md">
+                        <h2 class="text-xl font-bold text-gray-700 p-4 border-b bg-gray-50 rounded-t-lg flex justify-between items-center">
+                            Last 10 Attempts <span id="history-id-display" class="text-sm font-normal text-indigo-500">${state.studentId ? `(${state.studentId})` : ''}</span>
+                        </h2>
+                        <ul id="history-list" class="divide-y divide-gray-100 max-h-80 overflow-y-auto">
+                            <li class="p-4 text-center text-gray-400">Enter your Student ID to see history.</li>
+                        </ul>
+                    </div>
+                </div>
+            `;
+            
+            // --- Event Listeners and State Updates ---
+
+            const studentIdSelect = document.getElementById('student-id-select');
+            const newStudentIdInput = document.getElementById('new-student-id-input');
+            const idError = document.getElementById('id-error');
+            const historyIdDisplay = document.getElementById('history-id-display');
+
+            const updateStartButton = () => {
+                document.getElementById('start-quiz-btn').textContent = `Start Practice Quiz (${state.quizLength} Questions)`;
+            };
+
+            const validateAndLoadHistory = (id) => {
+                if (id && id.length >= 3) {
+                    state.studentId = id;
+                    idError.classList.add('hidden');
+                    historyIdDisplay.textContent = `(${id})`;
+                    loadHistory();
+                } else {
+                    idError.classList.remove('hidden');
+                    historyIdDisplay.textContent = '';
+                    document.getElementById('history-list').innerHTML = '<li class="p-4 text-center text-gray-400">Enter your Student ID to see history.</li>';
+                }
+            };
+            
+            // Listener for NEW ID input (only active when visible)
+            newStudentIdInput.addEventListener('input', (e) => {
+                const id = e.target.value.trim();
+                validateAndLoadHistory(id);
+            });
+
+            // Listener for SELECT dropdown
+            studentIdSelect.addEventListener('change', (e) => {
+                const selectedValue = e.target.value;
+                
+                if (selectedValue === "NEW_STUDENT") {
+                    newStudentIdInput.style.display = 'block';
+                    newStudentIdInput.value = ''; // Clear new input
+                    state.studentId = '';
+                    newStudentIdInput.focus();
+                } else {
+                    newStudentIdInput.style.display = 'none';
+                    validateAndLoadHistory(selectedValue);
+                }
+            });
+
+
+            document.getElementById('time-limit').addEventListener('change', (e) => {
+                let value = parseInt(e.target.value);
+                value = Math.max(DEFAULT_SETTINGS.MIN_TIME, Math.min(DEFAULT_SETTINGS.MAX_TIME, value));
+                state.timeLimitPerQuestion = value;
+                e.target.value = value;
+                state.timeRemaining = value;
+            });
+            
+            document.getElementById('quiz-length').addEventListener('change', (e) => {
+                let value = parseInt(e.target.value);
+                value = Math.max(DEFAULT_SETTINGS.MIN_QUESTIONS, Math.min(DEFAULT_SETTINGS.MAX_QUESTIONS, value));
+                state.quizLength = value;
+                e.target.value = value;
+                updateStartButton();
+            });
+            
+            document.getElementById('random-mode').addEventListener('change', (e) => {
+                state.randomMode = e.target.value;
+            });
+
+
+            document.getElementById('start-quiz-btn').addEventListener('click', () => {
+                const currentId = studentIdSelect.value !== 'NEW_STUDENT' ? studentIdSelect.value : newStudentIdInput.value.trim();
+                
+                if (currentId && currentId.length >= 3) {
+                    state.studentId = currentId;
+                    idError.classList.add('hidden');
+                    startQuiz();
+                } else {
+                    idError.textContent = "Please select an existing ID or enter a new one (3+ chars).";
+                    idError.classList.remove('hidden');
+                }
+            });
+
+            // Initial load for existing ID if any is pre-selected (only relevant if history exists)
+            if (studentIdSelect.value && studentIdSelect.value !== 'NEW_STUDENT') {
+                validateAndLoadHistory(studentIdSelect.value);
+                newStudentIdInput.style.display = 'none';
+            } else if (state.studentId) {
+                // If state.studentId was set from a previous session but is not in the dropdown yet
+                validateAndLoadHistory(state.studentId);
+            }
+        };
+
+        const renderQuizQuestion = () => {
+            const currentQ = state.selectedQuestions[state.currentQuestionIndex];
+            const qNum = state.currentQuestionIndex + 1;
+            const selectedOption = state.userAnswers[state.currentQuestionIndex]?.userAnswer;
+            
+            contentArea.innerHTML = `
+                <div class="flex justify-between items-center mb-6 p-4 bg-indigo-50 rounded-lg shadow-sm">
+                    <div class="text-xl font-semibold text-indigo-700">Question ${qNum} of ${state.selectedQuestions.length}</div>
+                    <div id="quiz-timer" class="text-2xl font-extrabold text-red-600 bg-white p-2 rounded shadow-md w-24 text-center">
+                        ${state.timeRemaining}s
+                    </div>
+                </div>
+
+                <div class="bg-white border border-gray-200 rounded-lg shadow-md p-6 mb-8">
+                    <p class="text-lg font-medium text-gray-800">${currentQ.question}</p>
+                </div>
+
+                <div id="options-grid" class="space-y-3">
+                    ${currentQ.options.map((option, index) => `
+                        <div class="option-card p-4 border rounded-lg shadow-sm text-gray-700 font-medium 
+                            ${selectedOption === option ? 'bg-indigo-200 border-indigo-500' : 'bg-white border-gray-300 hover:bg-gray-50'}"
+                            data-option="${option}">
+                            <span class="font-bold mr-2">${String.fromCharCode(65 + index)}.</span> ${option}
+                        </div>
+                    `).join('')}
+                </div>
+
+                <div class="flex justify-center mt-8 pt-4 border-t border-gray-200">
+                    <p class="text-gray-500 text-sm italic">Click an option to proceed automatically.</p>
+                </div>
+            `;
+
+            document.getElementById('options-grid').addEventListener('click', handleOptionSelect);
+
+            startQuestionTimer();
+        };
+
+        const startQuiz = () => {
+            selectQuizQuestions(); 
+            
+            state.currentQuestionIndex = 0;
+            state.userAnswers = state.selectedQuestions.map((_, index) => ({
+                index: index,
+                timeSpent: 0,
+                userAnswer: null,
+            }));
+            state.startTime = Date.now();
+            state.timeRemaining = state.timeLimitPerQuestion;
+            
+            renderQuizQuestion();
+        };
+
+        const resetQuiz = () => {
+            clearInterval(state.timer);
+            state.timer = null;
+            state.studentId = ''; // Clear ID on full reset/retake screen
+            renderStartScreen();
+        };
+
+        const resetTimer = () => {
+             clearInterval(state.timer);
+             state.timer = null;
+             state.timeRemaining = state.timeLimitPerQuestion;
+        }
+
+        const startQuestionTimer = () => {
+            const timerDisplay = document.getElementById('quiz-timer');
+            state.timeRemaining = state.timeLimitPerQuestion; 
+
+            const tick = () => {
+                if (state.timeRemaining <= 0) {
+                    handleNextSubmit(true); 
+                } else {
+                    state.timeRemaining--;
+                    updateTimerDisplay();
+                }
+            };
+
+            resetTimer();
+            updateTimerDisplay();
+            state.timer = setInterval(tick, 1000);
+        };
+        
+        const updateTimerDisplay = () => {
+            const timerDisplay = document.getElementById('quiz-timer');
+            if (timerDisplay) {
+                timerDisplay.textContent = `${state.timeRemaining}s`;
+                if (state.timeRemaining <= 10) {
+                    timerDisplay.classList.add('animate-pulse', 'bg-red-200');
+                } else {
+                    timerDisplay.classList.remove('animate-pulse', 'bg-red-200');
+                }
+            }
+        };
+
+        const recordAnswer = (selectedAnswer) => {
+            const timeSpent = state.timeLimitPerQuestion - state.timeRemaining; 
+            state.userAnswers[state.currentQuestionIndex].userAnswer = selectedAnswer;
+            state.userAnswers[state.currentQuestionIndex].timeSpent = timeSpent;
+        };
+        
+        const handleOptionSelect = (e) => {
+            const optionCard = e.target.closest('.option-card');
+            if (!optionCard) return;
+
+            const selectedAnswer = optionCard.dataset.option;
+            
+            // 1. Highlight the selection (visual feedback)
+            document.querySelectorAll('.option-card').forEach(card => {
+                card.classList.remove('bg-indigo-200', 'border-indigo-500');
+                card.classList.add('bg-white', 'border-gray-300', 'hover:bg-gray-50');
+            });
+            optionCard.classList.add('bg-indigo-200', 'border-indigo-500');
+            optionCard.classList.remove('bg-white', 'border-gray-300', 'hover:bg-gray-50');
+
+            // 2. Record the answer and time spent immediately
+            recordAnswer(selectedAnswer);
+            
+            // 3. AUTO-ADVANCE: Move to the next question/submit the quiz immediately.
+            setTimeout(() => {
+                handleNextSubmit(false, true);
+            }, 300); 
+        };
+
+        const handleNextSubmit = (isAutoSubmit = false, isAutoAdvance = false) => {
+            
+            // Auto-advance logic for selected answer (isAutoAdvance = true)
+            if (isAutoAdvance) {
+                if (state.currentQuestionIndex < state.selectedQuestions.length - 1) {
+                    state.currentQuestionIndex++;
+                    resetTimer();
+                    renderQuizQuestion();
+                } 
+                else {
+                    submitQuiz();
+                }
+                return;
+            }
+
+            // Auto-submit logic for timer running out (isAutoSubmit = true)
+            if (isAutoSubmit) {
+                if (state.currentQuestionIndex < state.selectedQuestions.length - 1) {
+                    state.currentQuestionIndex++;
+                    resetTimer();
+                    renderQuizQuestion();
+                } 
+                else {
+                    submitQuiz();
+                }
+                return;
+            }
+        };
+
+        const submitQuiz = () => {
+            clearInterval(state.timer);
+            
+            const endTime = Date.now();
+            const totalTime = Math.floor((endTime - state.startTime) / 1000);
+
+            let score = 0;
+            const detailedResults = state.selectedQuestions.map((q, index) => {
+                const userAnswerData = state.userAnswers[index];
+                const isCorrect = userAnswerData.userAnswer === q.answer;
+                
+                if (isCorrect) {
+                    score++;
+                }
+
+                return {
+                    index: index,
+                    question: q.question,
+                    correctAnswer: q.answer,
+                    userAnswer: userAnswerData.userAnswer,
+                    isCorrect: isCorrect,
+                    timeSpent: userAnswerData.timeSpent,
+                };
+            });
+
+            const finalResults = {
+                studentId: state.studentId,
+                quizLength: state.selectedQuestions.length,
+                score: score,
+                totalTime: totalTime,
+                detailedResults: detailedResults
+            };
+            
+            saveResultsToLocal(finalResults);
+            renderResults(finalResults);
+        };
+
+        const renderResults = (finalResults) => {
+            clearInterval(state.timer);
+            const score = finalResults.score;
+            const total = finalResults.quizLength;
+            const percentage = ((score / total) * 100).toFixed(0);
+            const totalTimeInMinutes = (finalResults.totalTime / 60).toFixed(2);
+            const statusColor = score >= total * 0.7 ? 'text-green-600' : 'text-red-600';
+
+            contentArea.innerHTML = `
+                <div class="text-center py-6">
+                    <h2 class="text-3xl font-bold text-indigo-700 mb-2">Quiz Completed!</h2>
+                    <p class="text-xl text-gray-600">Well done, **${state.studentId}**.</p>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                    <div class="bg-indigo-100 p-4 rounded-lg shadow-md text-center">
+                        <p class="text-sm text-indigo-600 font-semibold">Final Score</p>
+                        <p class="text-4xl font-extrabold ${statusColor}">${score} / ${total}</p>
+                    </div>
+                    <div class="bg-indigo-100 p-4 rounded-lg shadow-md text-center">
+                        <p class="text-sm text-indigo-600 font-semibold">Percentage</p>
+                        <p class="text-4xl font-extrabold ${statusColor}">${percentage}%</p>
+                    </div>
+                    <div class="bg-indigo-100 p-4 rounded-lg shadow-md text-center">
+                        <p class="text-sm text-indigo-600 font-semibold">Total Time</p>
+                        <p class="text-xl font-bold text-indigo-700 mt-2">${totalTimeInMinutes} mins</p>
+                    </div>
+                </div>
+
+                <div class="bg-white border border-gray-200 rounded-lg shadow-xl p-6">
+                    <h3 class="text-2xl font-bold text-gray-700 mb-4 border-b pb-2">Detailed Review</h3>
+                    <div class="space-y-4 max-h-96 overflow-y-auto pr-2">
+                        ${finalResults.detailedResults.map((item, index) => `
+                            <div class="p-3 border rounded-lg ${item.isCorrect ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}">
+                                <p class="font-bold text-gray-800">Q${index + 1}: ${item.question}</p>
+                                <p class="text-sm mt-1">
+                                    <span class="font-semibold ${item.isCorrect ? 'text-green-700' : 'text-red-700'}">Your Answer:</span> ${item.userAnswer || 'No Answer'}
+                                </p>
+                                <p class="text-sm">
+                                    <span class="font-semibold text-gray-700">Correct Answer:</span> ${item.correctAnswer}
+                                </p>
+                                <p class="text-xs text-gray-500 mt-1">Time Spent: ${item.timeSpent}s</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <div class="mt-8 flex justify-between">
+                    <button id="export-csv-btn" 
+                        class="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition duration-150 flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        Download CSV
+                    </button>
+                    <button id="retake-btn" 
+                        class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-150">
+                        Retake Quiz
+                    </button>
+                </div>
+            `;
+
+            document.getElementById('export-csv-btn').addEventListener('click', () => exportToCSV(finalResults));
+            document.getElementById('retake-btn').addEventListener('click', resetQuiz);
+        };
+
+
+        // --- 6. INITIALIZATION ---
+
+        document.addEventListener('DOMContentLoaded', renderStartScreen);
+
+    </script>
+</body>
+</html>
