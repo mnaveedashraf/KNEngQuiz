@@ -84,16 +84,7 @@ export const quizQuestions = [
     { question: "59. Correct spelling is:", options: ["libary", "lybary", "library", "libarry"], answer: "library" },
     { question: "60. Choose the correct punctuation.", options: ["Hurrah.", "Hurrah?", "Hurrah!", "hurrah."], answer: "Hurrah!" },
     { question: "61. Correct spelling is:", options: ["enviroment", "envaironment", "environment", "envirnment"], answer: "environment" },
-   //   { question: "62. Which is punctuated correctly?", options: ['Ali said "I am fine."', "Ali said, I am fine.", 'Ali said, "I am fine."', 'Ali said "I am fine.'], answer: 'Ali said, "I am fine."' },
-    { 
-    question: "62. Which is punctuated correctly?", 
-    options: [
-        'Ali said "I am fine."', 
-        "Ali said, I am fine.", 
-        'Ali said, "I am fine."', 
-        'Ali said "I am fine.'], 
-    answer: 'Ali said, "I am fine."' // <-- The correct answer string now matches Option C exactly.
-},
+    { question: "62. Which is punctuated correctly?", options: ['Ali said "I am fine."', "Ali said, I am fine.", 'Ali said, "I am fine."', 'Ali said "I am fine."'], answer: 'Ali said, "I am fine."' },
     { question: "63. Correct spelling is:", options: ["surprize", "surprise", "suprise", "surprisse"], answer: "surprise" },
     { question: "64. Which is punctuated correctly?", options: ["Where are you.", "Where are you?", "Where are you!", "Where are You?"], answer: "Where are you?" },
     { question: "65. Correct spelling is:", options: ["neighbr", "neibour", "neighbour", "naybor"], answer: "neighbour" },
@@ -227,5 +218,6 @@ export const quizQuestions = [
     { question: "173. Which sentence is written in the past tense?", options: ["They played soccer yesterday.", "They will play soccer.", "They are playing soccer.", "They plays soc"], answer: "They played soccer yesterday." }
 
 ];
+
 
 
