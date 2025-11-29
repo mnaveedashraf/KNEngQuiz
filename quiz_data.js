@@ -45,7 +45,7 @@ export const quizQuestions = [
     { question: "26. We ___ in Karachi two years ago.", options: ["live", "lived", "living", "lives"], answer: "lived" },
     { question: "27. He ___ to school every day.", options: ["go", "goes", "gone", "going"], answer: "goes" },
     { question: "28. They ___ not at home yesterday.", options: ["is", "were", "was", "are"], answer: "were" },
-    { question: "29. She ___ very happy now.", options: ["am", "b)is", "are", "be"], answer: "is" }, // Corrected option (b)
+    { question: "29. She ___ very happy now.", options: ["am", "is", "are", "be"], answer: "is" }, // Corrected option (b)
     { question: "30. I ___ an apple yesterday.", options: ["eat", "ate", "eaten", "eating"], answer: "ate" },
     { question: "31. The bell ___ loudly.", options: ["ring", "rings", "rangs", "ringed"], answer: "rings" },
     { question: "32. The boys ___ cricket now.", options: ["is playing", "are playing", "were playing", "played"], answer: "are playing" },
@@ -74,7 +74,7 @@ export const quizQuestions = [
     { question: "51. The ball is ___ the box.", options: ["coming", "far", "inside", "high"], answer: "inside" },
     { question: "52. The sun sets ___ the west.", options: ["at", "on", "in", "into"], answer: "in" },
     { question: "53. We went ___ the park.", options: ["on", "to", "under", "between"], answer: "to" },
-    { question: "54. The cat jumped ___ the wall.", options: ["under", "over", "on", "in"], answer: "over" },
+    { question: "54. The cat jumped ___ the wall.", options: ["under", "over", "on", "in"], answer: "on" },
     { question: "55. She put the book ___ her bag.", options: ["on", "near", "into", "over"], answer: "into" },
 
     // 56-65: Spelling and Punctuation
@@ -216,4 +216,5 @@ export const quizQuestions = [
     { question: "171. Which word is an adverb in this sentence: 'She ran quickly to the door'?", options: ["She", "Ran", "Quickly", "Door"], answer: "Quickly" },
     { question: "172. What is the opposite of 'empty'?", options: ["Small", "Full", "Clean", "Hard"], answer: "Full" },
     { question: "173. Which sentence is written in the past tense?", options: ["They played soccer yesterday.", "They will play soccer.", "They are playing soccer.", "They plays soc"], answer: "They played soccer yesterday." }
+
 ];
