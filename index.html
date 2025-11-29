@@ -63,7 +63,8 @@
             MAX_TIME: 180,
             QUIZ_LENGTH: 10,
             MIN_QUESTIONS: 5,
-            MAX_QUESTIONS: 50,
+            // CRITICAL CHANGE: Use the true maximum available questions
+            MAX_QUESTIONS: TOTAL_QUESTIONS_AVAILABLE, // This is 173,
             RANDOM_MODE: 'Random'
         };
 
@@ -261,7 +262,8 @@
                                 <input type="number" id="quiz-length" min="${DEFAULT_SETTINGS.MIN_QUESTIONS}" max="${DEFAULT_SETTINGS.MAX_QUESTIONS}" 
                                     class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500" 
                                     value="${state.quizLength}">
-                                <p class="text-xs text-gray-500 mt-1">5 to 50 questions.</p>
+                                   <p class="text-xs text-gray-500 mt-1">5 to ${DEFAULT_SETTINGS.MAX_QUESTIONS} questions.</p>
+                                //<p class="text-xs text-gray-500 mt-1">5 to 50 questions.</p>
                             </div>
 
                             <div>
@@ -643,4 +645,5 @@
 
     </script>
 </body>
+
 </html>
