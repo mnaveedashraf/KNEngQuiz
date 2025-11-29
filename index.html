@@ -483,7 +483,41 @@
             state.userAnswers[state.currentQuestionIndex].userAnswer = selectedAnswer;
             state.userAnswers[state.currentQuestionIndex].timeSpent = timeSpent;
         };
-        
+
+        //New Code Starts
+        // index.html (Around Line 375)
+
+        const handleOptionSelect = (e) => {
+            const optionCard = e.target.closest('.option-card');
+            if (!optionCard) return;
+
+            // --- CRITICAL FIX START ---
+            // 1. Get the actual text content of the option card, ensuring full string capture.
+            //    We clean leading/trailing whitespace and remove the letter prefix (A., B., C., D.)
+            let selectedAnswerElement = optionCard.querySelector('span') ? optionCard.textContent.trim().substring(2).trim() : optionCard.textContent.trim();
+            
+            // 2. Fallback to data-option only if text content fails (just for safety)
+            const selectedAnswer = selectedAnswerElement || optionCard.dataset.option;
+            // --- CRITICAL FIX END ---
+
+            // 1. Highlight the selection (visual feedback)
+            document.querySelectorAll('.option-card').forEach(card => {
+                card.classList.remove('bg-indigo-200', 'border-indigo-500');
+                card.classList.add('bg-white', 'border-gray-300', 'hover:bg-gray-50');
+            });
+            optionCard.classList.add('bg-indigo-200', 'border-indigo-500');
+            optionCard.classList.remove('bg-white', 'border-gray-300', 'hover:bg-gray-50');
+
+            // 2. Record the answer and time spent immediately
+            recordAnswer(selectedAnswer);
+            
+            // 3. AUTO-ADVANCE: Move to the next question/submit the quiz immediately.
+            setTimeout(() => {
+                handleNextSubmit(false, true);
+            }, 300); 
+        };
+        //New Code Engs
+        /* CHange by MNA
         const handleOptionSelect = (e) => {
             const optionCard = e.target.closest('.option-card');
             if (!optionCard) return;
@@ -506,7 +540,7 @@
                 handleNextSubmit(false, true);
             }, 300); 
         };
-
+*/
         const handleNextSubmit = (isAutoSubmit = false, isAutoAdvance = false) => {
             
             // Auto-advance logic for selected answer (isAutoAdvance = true)
@@ -646,4 +680,5 @@
 </body>
 
 </html>
+
 
