@@ -87,13 +87,13 @@ export const quizQuestions = [
     {
     question: "62. Which is punctuated correctly?",
     options: [
-        "Ali said \"I am fine.\"",
-        "Ali said, I am fine.",
-        "Ali said, \"I am fine.\"",
-        "Ali said \"I am fine.\""
+        'Ali said "I am fine."',
+        'Ali said, I am fine.',
+        'Ali said, "I am fine."',  // This is the correct text from your book
+        'Ali said "I am fine.'
     ],
-    answer: "Ali said, \"I am fine.\""
-    },
+    answer: 'Ali said, "I am fine."' // This string is 100% clean and matches the option
+},
     { question: "63. Correct spelling is:", options: ["surprize", "surprise", "suprise", "surprisse"], answer: "surprise" },
     { question: "64. Which is punctuated correctly?", options: ["Where are you.", "Where are you?", "Where are you!", "Where are You?"], answer: "Where are you?" },
     { question: "65. Correct spelling is:", options: ["neighbr", "neibour", "neighbour", "naybor"], answer: "neighbour" },
@@ -227,6 +227,7 @@ export const quizQuestions = [
     { question: "173. Which sentence is written in the past tense?", options: ["They played soccer yesterday.", "They will play soccer.", "They are playing soccer.", "They plays soc"], answer: "They played soccer yesterday." }
 
 ];
+
 
 
 
